@@ -1,0 +1,1 @@
+v1.0.0.1: Added support for MFT record sizes of 4096 bytes.

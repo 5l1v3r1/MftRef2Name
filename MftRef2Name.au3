@@ -1,10 +1,9 @@
 #RequireAdmin
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
-#AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Change2CUI=y
 #AutoIt3Wrapper_Res_Comment=Resolves filename or index number from a target on NTFS
 #AutoIt3Wrapper_Res_Description=Resolves filename or index number from a target on NTFS
-#AutoIt3Wrapper_Res_Fileversion=1.0.0.0
+#AutoIt3Wrapper_Res_Fileversion=1.0.0.1
 #AutoIt3Wrapper_Res_LegalCopyright=Joakim Schicht
 #AutoIt3Wrapper_Res_requestedExecutionLevel=asInvoker
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
@@ -13,6 +12,7 @@
 #Include <String.au3>
 #Include <FileConstants.au3>
 ;
+; https://github.com/jschicht
 ; http://code.google.com/p/mft2csv/
 ;
 Global $DirArray,$NeedIndx=0, $ResidentIndx, $DoExtractMeta=False, $TargetFileName, $DATA_Name, $FN_FileName, $NameQ[5], $TargetFileNameStr, $FN_Number
@@ -55,7 +55,7 @@ Global Const $tagUNICODESTRING = "ushort Length;ushort MaximumLength;ptr Buffer"
 Global Const $tagFILEINTERNALINFORMATION = "int IndexNumber;"
 Global $Timerstart = TimerInit()
 
-ConsoleWrite("MftRef2Name v1.0.0.0" & @CRLF & @CRLF)
+ConsoleWrite("MftRef2Name v1.0.0.1" & @CRLF & @CRLF)
 _ValidateInput()
 $StartStr = $cmdline[1]
 If StringRight($StartStr,1) = "\" Then $StartStr = StringTrimRight($StartStr,1)
@@ -341,18 +341,44 @@ Func _StripMftRecord($MFTEntry)
 	$UpdSeqArrOffset = Dec(_SwapEndian(StringMid($MFTEntry,11,4)))
 	$UpdSeqArrSize = Dec(_SwapEndian(StringMid($MFTEntry,15,4)))
 	$UpdSeqArr = StringMid($MFTEntry,3+($UpdSeqArrOffset*2),$UpdSeqArrSize*2*2)
-	$UpdSeqArrPart0 = StringMid($UpdSeqArr,1,4)
-	$UpdSeqArrPart1 = StringMid($UpdSeqArr,5,4)
-	$UpdSeqArrPart2 = StringMid($UpdSeqArr,9,4)
-	$RecordEnd1 = StringMid($MFTEntry,1023,4)
-	$RecordEnd2 = StringMid($MFTEntry,2047,4)
-	If $UpdSeqArrPart0 <> $RecordEnd1 OR $UpdSeqArrPart0 <> $RecordEnd2 Then
-		ConsoleWrite("Error the $MFT record is corrupt" & @CRLF)
-		;_DisplayInfo("Error the $MFT record is corrupt" & @CRLF)
-		Return SetError(1,0,0)
-	Else
+
+	If $MFT_Record_Size = 1024 Then
+		Local $UpdSeqArrPart0 = StringMid($UpdSeqArr,1,4)
+		Local $UpdSeqArrPart1 = StringMid($UpdSeqArr,5,4)
+		Local $UpdSeqArrPart2 = StringMid($UpdSeqArr,9,4)
+		Local $RecordEnd1 = StringMid($MFTEntry,1023,4)
+		Local $RecordEnd2 = StringMid($MFTEntry,2047,4)
+		If $UpdSeqArrPart0 <> $RecordEnd1 OR $UpdSeqArrPart0 <> $RecordEnd2 Then
+			_DebugOut("The record failed Fixup", $MFTEntry)
+			Return ""
+		EndIf
 		$MFTEntry = StringMid($MFTEntry,1,1022) & $UpdSeqArrPart1 & StringMid($MFTEntry,1027,1020) & $UpdSeqArrPart2
+	ElseIf $MFT_Record_Size = 4096 Then
+		Local $UpdSeqArrPart0 = StringMid($UpdSeqArr,1,4)
+		Local $UpdSeqArrPart1 = StringMid($UpdSeqArr,5,4)
+		Local $UpdSeqArrPart2 = StringMid($UpdSeqArr,9,4)
+		Local $UpdSeqArrPart3 = StringMid($UpdSeqArr,13,4)
+		Local $UpdSeqArrPart4 = StringMid($UpdSeqArr,17,4)
+		Local $UpdSeqArrPart5 = StringMid($UpdSeqArr,21,4)
+		Local $UpdSeqArrPart6 = StringMid($UpdSeqArr,25,4)
+		Local $UpdSeqArrPart7 = StringMid($UpdSeqArr,29,4)
+		Local $UpdSeqArrPart8 = StringMid($UpdSeqArr,33,4)
+		Local $RecordEnd1 = StringMid($MFTEntry,1023,4)
+		Local $RecordEnd2 = StringMid($MFTEntry,2047,4)
+		Local $RecordEnd3 = StringMid($MFTEntry,3071,4)
+		Local $RecordEnd4 = StringMid($MFTEntry,4095,4)
+		Local $RecordEnd5 = StringMid($MFTEntry,5119,4)
+		Local $RecordEnd6 = StringMid($MFTEntry,6143,4)
+		Local $RecordEnd7 = StringMid($MFTEntry,7167,4)
+		Local $RecordEnd8 = StringMid($MFTEntry,8191,4)
+		If $UpdSeqArrPart0 <> $RecordEnd1 OR $UpdSeqArrPart0 <> $RecordEnd2 OR $UpdSeqArrPart0 <> $RecordEnd3 OR $UpdSeqArrPart0 <> $RecordEnd4 OR $UpdSeqArrPart0 <> $RecordEnd5 OR $UpdSeqArrPart0 <> $RecordEnd6 OR $UpdSeqArrPart0 <> $RecordEnd7 OR $UpdSeqArrPart0 <> $RecordEnd8 Then
+			_DebugOut("The record failed Fixup", $MFTEntry)
+			Return ""
+		Else
+			$MFTEntry =  StringMid($MFTEntry,1,1022) & $UpdSeqArrPart1 & StringMid($MFTEntry,1027,1020) & $UpdSeqArrPart2 & StringMid($MFTEntry,2051,1020) & $UpdSeqArrPart3 & StringMid($MFTEntry,3075,1020) & $UpdSeqArrPart4 & StringMid($MFTEntry,4099,1020) & $UpdSeqArrPart5 & StringMid($MFTEntry,5123,1020) & $UpdSeqArrPart6 & StringMid($MFTEntry,6147,1020) & $UpdSeqArrPart7 & StringMid($MFTEntry,7171,1020) & $UpdSeqArrPart8
+		EndIf
 	EndIf
+
 	$RecordSize = Dec(_SwapEndian(StringMid($MFTEntry,51,8)),2)
 	$HeaderSize = Dec(_SwapEndian(StringMid($MFTEntry,43,4)),2)
 	$MFTEntry = StringMid($MFTEntry,$HeaderSize*2+3,($RecordSize-$HeaderSize-8)*2)        ;strip "0x..." and "FFFFFFFF..."
@@ -397,18 +423,44 @@ $HEADER_MFTREcordNumber = ""
 $UpdSeqArrOffset = Dec(_SwapEndian(StringMid($MFTEntry,11,4)))
 $UpdSeqArrSize = Dec(_SwapEndian(StringMid($MFTEntry,15,4)))
 $UpdSeqArr = StringMid($MFTEntry,3+($UpdSeqArrOffset*2),$UpdSeqArrSize*2*2)
-$UpdSeqArrPart0 = StringMid($UpdSeqArr,1,4)
-$UpdSeqArrPart1 = StringMid($UpdSeqArr,5,4)
-$UpdSeqArrPart2 = StringMid($UpdSeqArr,9,4)
-$RecordEnd1 = StringMid($MFTEntry,1023,4)
-$RecordEnd2 = StringMid($MFTEntry,2047,4)
-If $UpdSeqArrPart0 <> $RecordEnd1 OR $UpdSeqArrPart0 <> $RecordEnd2 Then
-	ConsoleWrite("Error: the $MFT record is corrupt" & @CRLF)
-	;_DisplayInfo("Error: the $MFT record is corrupt" & @CRLF)
-	Return SetError(1,0,0)
- Else
-	$MFTEntry = StringMid($MFTEntry,1,1022) & $UpdSeqArrPart1 & StringMid($MFTEntry,1027,1020) & $UpdSeqArrPart2
-EndIf
+
+	If $MFT_Record_Size = 1024 Then
+		Local $UpdSeqArrPart0 = StringMid($UpdSeqArr,1,4)
+		Local $UpdSeqArrPart1 = StringMid($UpdSeqArr,5,4)
+		Local $UpdSeqArrPart2 = StringMid($UpdSeqArr,9,4)
+		Local $RecordEnd1 = StringMid($MFTEntry,1023,4)
+		Local $RecordEnd2 = StringMid($MFTEntry,2047,4)
+		If $UpdSeqArrPart0 <> $RecordEnd1 OR $UpdSeqArrPart0 <> $RecordEnd2 Then
+			_DebugOut("The record failed Fixup", $MFTEntry)
+			Return ""
+		EndIf
+		$MFTEntry = StringMid($MFTEntry,1,1022) & $UpdSeqArrPart1 & StringMid($MFTEntry,1027,1020) & $UpdSeqArrPart2
+	ElseIf $MFT_Record_Size = 4096 Then
+		Local $UpdSeqArrPart0 = StringMid($UpdSeqArr,1,4)
+		Local $UpdSeqArrPart1 = StringMid($UpdSeqArr,5,4)
+		Local $UpdSeqArrPart2 = StringMid($UpdSeqArr,9,4)
+		Local $UpdSeqArrPart3 = StringMid($UpdSeqArr,13,4)
+		Local $UpdSeqArrPart4 = StringMid($UpdSeqArr,17,4)
+		Local $UpdSeqArrPart5 = StringMid($UpdSeqArr,21,4)
+		Local $UpdSeqArrPart6 = StringMid($UpdSeqArr,25,4)
+		Local $UpdSeqArrPart7 = StringMid($UpdSeqArr,29,4)
+		Local $UpdSeqArrPart8 = StringMid($UpdSeqArr,33,4)
+		Local $RecordEnd1 = StringMid($MFTEntry,1023,4)
+		Local $RecordEnd2 = StringMid($MFTEntry,2047,4)
+		Local $RecordEnd3 = StringMid($MFTEntry,3071,4)
+		Local $RecordEnd4 = StringMid($MFTEntry,4095,4)
+		Local $RecordEnd5 = StringMid($MFTEntry,5119,4)
+		Local $RecordEnd6 = StringMid($MFTEntry,6143,4)
+		Local $RecordEnd7 = StringMid($MFTEntry,7167,4)
+		Local $RecordEnd8 = StringMid($MFTEntry,8191,4)
+		If $UpdSeqArrPart0 <> $RecordEnd1 OR $UpdSeqArrPart0 <> $RecordEnd2 OR $UpdSeqArrPart0 <> $RecordEnd3 OR $UpdSeqArrPart0 <> $RecordEnd4 OR $UpdSeqArrPart0 <> $RecordEnd5 OR $UpdSeqArrPart0 <> $RecordEnd6 OR $UpdSeqArrPart0 <> $RecordEnd7 OR $UpdSeqArrPart0 <> $RecordEnd8 Then
+			_DebugOut("The record failed Fixup", $MFTEntry)
+			Return ""
+		Else
+			$MFTEntry =  StringMid($MFTEntry,1,1022) & $UpdSeqArrPart1 & StringMid($MFTEntry,1027,1020) & $UpdSeqArrPart2 & StringMid($MFTEntry,2051,1020) & $UpdSeqArrPart3 & StringMid($MFTEntry,3075,1020) & $UpdSeqArrPart4 & StringMid($MFTEntry,4099,1020) & $UpdSeqArrPart5 & StringMid($MFTEntry,5123,1020) & $UpdSeqArrPart6 & StringMid($MFTEntry,6147,1020) & $UpdSeqArrPart7 & StringMid($MFTEntry,7171,1020) & $UpdSeqArrPart8
+		EndIf
+	EndIf
+
 $HEADER_LSN = StringMid($MFTEntry,19,16)
 $HEADER_LSN = Dec(_SwapEndian($HEADER_LSN),2)
 $HEADER_SequenceNo = Dec(_SwapEndian(StringMid($MFTEntry,35,4)))
@@ -732,9 +784,10 @@ Func _FindFileMFTRecord($TargetFile)
 	EndIf
 	$TargetFile = _DecToLittleEndian($TargetFile)
 	$TargetFileDec = Dec(_SwapEndian($TargetFile),2)
+	Local $RecordsDivisor = $MFT_Record_Size/512
 	For $i = 1 To UBound($MFT_RUN_Clusters)-1
 		$CurrentClusters = $MFT_RUN_Clusters[$i]
-		$RecordsInCurrentRun = ($CurrentClusters*$SectorsPerCluster)/2
+		$RecordsInCurrentRun = ($CurrentClusters*$SectorsPerCluster)/$RecordsDivisor
 		$Counter+=$RecordsInCurrentRun
 		If $Counter>$TargetFileDec Then
 			ExitLoop
@@ -742,14 +795,14 @@ Func _FindFileMFTRecord($TargetFile)
 	Next
 	$TryAt = $Counter-$RecordsInCurrentRun
 	$TryAtArrIndex = $i
-	$RecordsPerCluster = $SectorsPerCluster/2
+	$RecordsPerCluster = $SectorsPerCluster/$RecordsDivisor
 	Do
 		$RecordJumper+=$RecordsPerCluster
 		$Counter2+=1
 		$Final = $TryAt+$RecordJumper
 	Until $Final>=$TargetFileDec
 	$RecordsTooMuch = $Final-$TargetFileDec
-	_WinAPI_SetFilePointerEx($hFile, $ImageOffset+$MFT_RUN_VCN[$i]*$BytesPerCluster+($Counter2*$BytesPerCluster)-($RecordsTooMuch*1024), $FILE_BEGIN)
+	_WinAPI_SetFilePointerEx($hFile, $ImageOffset+$MFT_RUN_VCN[$i]*$BytesPerCluster+($Counter2*$BytesPerCluster)-($RecordsTooMuch*$MFT_Record_Size), $FILE_BEGIN)
 	_WinAPI_ReadFile($hFile, DllStructGetPtr($tBuffer), $MFT_Record_Size, $nBytes)
 	$record = DllStructGetData($tBuffer, 1)
 	If StringMid($record,91,8) = $TargetFile Then
@@ -757,7 +810,7 @@ Func _FindFileMFTRecord($TargetFile)
 ;		ConsoleWrite("Record number: " & Dec(_SwapEndian($TargetFile),2) & " found at disk offset: " & $TmpOffset[3] & " -> 0x" & Hex($TmpOffset[3]) & @CRLF)
 		;_DisplayInfo("Record number: " & Dec(_SwapEndian($TargetFile),2) & " found at disk offset: " & $TmpOffset[3] & " -> 0x" & Hex($TmpOffset[3]) & @CRLF)
 		_WinAPI_CloseHandle($hFile)
-;		$RetVal[0] = $TmpOffset[3]-1024
+;		$RetVal[0] = $TmpOffset[3]-$MFT_Record_Size
 ;		$RetVal[1] = $record
 ;		Return $RetVal
 		Return $record
@@ -768,7 +821,7 @@ Func _FindFileMFTRecord($TargetFile)
 EndFunc
 
 Func _FindMFT($TargetFile)
-	Local $nBytes;, $MFT_Record_Size=1024
+	Local $nBytes
 	$tBuffer = DllStructCreate("byte[" & $MFT_Record_Size & "]")
 	$hFile = _WinAPI_CreateFile("\\.\" & $TargetDrive, 2, 2, 7)
 	If $hFile = 0 Then
